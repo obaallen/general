@@ -1,0 +1,65 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  serverless-bc-inference
+  SAM Template for serverless-bc-inference Lambda function for XGBoost serveless inference
+Parameters:
+  SecurityGroupIds:
+    Type: CommaDelimitedList
+    Default: sg-014361453127d16a2
+  SubnetIDs:
+    Type: CommaDelimitedList
+    Description: The list of SubnetIDs in your Virtual Private Cloud (VPC)
+    Default: subnet-0784f069964858091,subnet-030407feac7ef3404,subnet-05fae267388dc7487
+  EFSpath:
+    Type: String
+    Default: /mnt/inference
+  AccessPointARN:
+    Type: String
+    Description: Access point ARN
+    Default: arn:aws:elasticfilesystem:us-east-2:947662644236:access-point/fsap-0de707296c28159b3
+
+Resources:
+  XGBoostInferenceFunction:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Properties:
+      CodeUri: xgboost_inference_function/
+      Handler: app.lambda_handler
+      Runtime: python3.7
+      Timeout: 60
+      MemorySize: 256
+      VpcConfig:
+        SecurityGroupIds: !Ref SecurityGroupIds
+        SubnetIds: !Ref SubnetIDs
+      FileSystemConfigs:
+      - Arn: !Ref AccessPointARN
+        LocalMountPath: !Ref EFSpath
+      Policies:
+      - Statement:
+        - Sid: AWSLambdaVPCAccessExecutionRole
+          Effect: Allow
+          Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+            - ec2:CreateNetworkInterface
+            - ec2:DescribeNetworkInterfaces
+            - ec2:DeleteNetworkInterface
+          Resource: "*"
+        - Sid: AmazonElasticFileSystemClientFullAccess
+          Effect: Allow
+          Action:
+            - elasticfilesystem:ClientMount
+            - elasticfilesystem:ClientRootAccess
+            - elasticfilesystem:ClientWrite
+            - elasticfilesystem:DescribeMountTargets
+          Resource: "*"
+      Environment:
+        Variables:
+          PYTHONPATH: /mnt/inference/lib
+          MODEL_FILE_NAME: /mnt/inference/model/bc-xgboost-model
+
+Outputs:
+  XGBoostInferenceFunction:
+    Description: "XGBoost Inference Lambda Function ARN"
+    Value: !GetAtt XGBoostInferenceFunction.Arn
